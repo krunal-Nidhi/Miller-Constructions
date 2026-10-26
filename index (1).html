@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Miller Constructions | Commercial Construction in Alberta</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel CDN for inline JSX transformation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Recharts CDN -->
+  <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    // --- Rent vs Buy Simulator Component ---
+    function RentVsBuySimulator() {
+      const [homePrice, setHomePrice] = useState(600000);
+      const [downPaymentPercent, setDownPaymentPercent] = useState(20);
+      const [interestRate, setInterestRate] = useState(5.5);
+      const [hoaFee, setHoaFee] = useState(250);
+      const [propertyTaxRate, setPropertyTaxRate] = useState(1.2);
+      const [monthlyRent, setMonthlyRent] = useState(2500);
+      const [rentIncrease, setRentIncrease] = useState(3.0);
+      const [homeAppreciation, setHomeAppreciation] = useState(3.5);
+      const [investmentReturn, setInvestmentReturn] = useState(6.0);
+      const [marginalTaxRate, setMarginalTaxRate] = useState(25);
+
+      const simulationData = useMemo(() => {
+        const years = 10;
+        const downPayment = homePrice * (downPaymentPercent / 100);
+        let loanBalance = homePrice - downPayment;
+        const monthlyInterestRate = interestRate / 100 / 12;
+        const totalPayments = 30 * 12;
+        
+        const monthlyMortgage = (interestRate > 0)
+          ? loanBalance * (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, totalPayments)) / (Math.pow(1 + monthlyInterestRate, totalPayments) - 1)
+          : loanBalance / totalPayments;
+
+        let currentHomeValue = homePrice;
+        let currentRent = monthlyRent;
+        let cumulativeBuyCost = downPayment;
+        let cumulativeRentCost = 0;
+        let renterInvestment = downPayment; // opportunity cost capital invested
+
+        const data = [];
+
+        for (let year = 1; year <= years; year++) {
+          let yearlyMortgageInterest = 0;
+          let yearlyMortgagePrincipal = 0;
+
+          for (let month = 1; month <= 12; month++) {
+            const interestPayment = loanBalance * monthlyInterestRate;
+            const principalPayment = monthlyMortgage - interestPayment;
+            yearlyMortgageInterest += interestPayment;
+            yearlyMortgagePrincipal += principalPayment;
+            loanBalance -= principalPayment;
+          }
+
+          const yearlyPropertyTax = currentHomeValue * (propertyTaxRate / 100);
+          const taxSavings = (yearlyMortgageInterest + yearlyPropertyTax) * (marginalTaxRate / 100);
+          const yearlyBuyExpense = (monthlyMortgage + hoaFee) * 12 + yearlyPropertyTax - taxSavings;
+          
+          cumulativeBuyCost += yearlyBuyExpense;
+          currentHomeValue *= (1 + homeAppreciation / 100);
+
+          const yearlyRentExpense = currentRent * 12;
+          cumulativeRentCost += yearlyRentExpense;
+          currentRent *= (1 + rentIncrease / 100);
+
+          // Renter invests down payment & monthly cash diff
+          renterInvestment *= (1 + investmentReturn / 100);
+          const netBuyEquity = currentHomeValue - loanBalance;
+
+          data.push({
+            year: `Year ${year}`,
+            homeValue: Math.round(currentHomeValue),
+            buyEquity: Math.round(netBuyEquity),
+            buyOutflow: Math.round(cumulativeBuyCost),
+            rentOutflow: Math.round(cumulativeRentCost),
+            renterPortfolio: Math.round(renterInvestment)
+          });
+        }
+        return data;
+      }, [homePrice, downPaymentPercent, interestRate, hoaFee, propertyTaxRate, monthlyRent, rentIncrease, homeAppreciation, investmentReturn, marginalTaxRate]);
+
+      const finalYear = simulationData[simulationData.length - 1];
+      const buyerNetWorth = finalYear.buyEquity - (finalYear.buyOutflow - (homePrice * downPaymentPercent / 100));
+      const renterNetWorth = finalYear.renterPortfolio - finalYear.rentOutflow;
+
+      return (
+        <div class="bg-white rounded-2xl shadow-xl p-6 lg:p-10 border border-slate-100">
+          <div class="mb-8 border-b pb-6">
+            <h2 class="text-3xl font-bold text-slate-900">10-Year Rent vs. Buy Simulator</h2>
+            <p class="text-slate-600 mt-2">Model mortgage rates, HOA fees, down payments, tax deductions, and property equity vs renting in Alberta.</p>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Controls */}
+            <div class="space-y-5 bg-slate-50 p-6 rounded-xl border border-slate-200 text-sm">
+              <h3 class="font-bold text-slate-800 text-lg border-b pb-2">Financial Parameters</h3>
+              
+              <div>
+                <label class="flex justify-between font-medium text-slate-700">
+                  <span>Home Price ($)</span>
+                  <span class="font-bold text-slate-900">${homePrice.toLocaleString()}</span>
+                </label>
+                <input type="range" min="200000" max="2000000" step="25000" value={homePrice} onChange={e => setHomePrice(Number(e.target.value))} class="w-full mt-1 accent-amber-600"/>
+              </div>
+
+              <div>
+                <label class="flex justify-between font-medium text-slate-700">
+                  <span>Down Payment (%)</span>
+                  <span class="font-bold text-slate-900">{downPaymentPercent}% (${(homePrice * downPaymentPercent / 100).toLocaleString()})</span>
+                </label>
+                <input type="range" min="5" max="50" step="1" value={downPaymentPercent} onChange={e => setDownPaymentPercent(Number(e.target.value))} class="w-full mt-1 accent-amber-600"/>
+              </div>
+
+              <div>
+                <label class="flex justify-between font-medium text-slate-700">
+                  <span>Mortgage Rate (%)</span>
+                  <span class="font-bold text-slate-900">{interestRate}%</span>
+                </label>
+                <input type="range" min="2.0" max="10.0" step="0.1" value={interestRate} onChange={e => setInterestRate(Number(e.target.value))} class="w-full mt-1 accent-amber-600"/>
+              </div>
+
+              <div>
+                <label class="flex justify-between font-medium text-slate-700">
+                  <span>Monthly Rent ($)</span>
+                  <span class="font-bold text-slate-900">${monthlyRent.toLocaleString()}</span>
+                </label>
+                <input type="range" min="1000" max="10000" step="100" value={monthlyRent} onChange={e => setMonthlyRent(Number(e.target.value))} class="w-full mt-1 accent-amber-600"/>
+              </div>
+
+              <div>
+                <label class="flex justify-between font-medium text-slate-700">
+                  <span>Monthly HOA Fee ($)</span>
+                  <span class="font-bold text-slate-900">${hoaFee}</span>
+                </label>
+                <input type="range" min="0" max="1000" step="25" value={hoaFee} onChange={e => setHoaFee(Number(e.target.value))} class="w-full mt-1 accent-amber-600"/>
+              </div>
+
+              <div>
+                <label class="flex justify-between font-medium text-slate-700">
+                  <span>Marginal Tax Rate (%)</span>
+                  <span class="font-bold text-slate-900">{marginalTaxRate}%</span>
+                </label>
+                <input type="range" min="10" max="50" step="1" value={marginalTaxRate} onChange={e => setMarginalTaxRate(Number(e.target.value))} class="w-full mt-1 accent-amber-600"/>
+              </div>
+            </div>
+
+            {/* Results / Visual Summary */}
+            <div class="lg:col-span-2 space-y-6">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="p-5 bg-amber-50 border border-amber-200 rounded-xl">
+                  <span class="text-amber-800 text-xs font-bold uppercase tracking-wider">Buying Equity (Year 10)</span>
+                  <p class="text-3xl font-extrabold text-amber-900 mt-2">${finalYear.buyEquity.toLocaleString()}</p>
+                  <p class="text-xs text-amber-700 mt-1">Projected Home Value: ${finalYear.homeValue.toLocaleString()}</p>
+                </div>
+
+                <div class="p-5 bg-slate-100 border border-slate-300 rounded-xl">
+                  <span class="text-slate-600 text-xs font-bold uppercase tracking-wider">Total Rent Outflow (10 Yrs)</span>
+                  <p class="text-3xl font-extrabold text-slate-900 mt-2">${finalYear.rentOutflow.toLocaleString()}</p>
+                  <p class="text-xs text-slate-600 mt-1">Assumes {rentIncrease}% annual increase</p>
+                </div>
+              </div>
+
+              {/* Data Table Summary */}
+              <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                <table class="w-full text-left text-sm text-slate-700">
+                  <thead class="bg-slate-100 text-slate-900 font-bold border-b border-slate-200">
+                    <tr>
+                      <th class="p-3">Timeline</th>
+                      <th class="p-3">Home Value</th>
+                      <th class="p-3">Buyer Equity</th>
+                      <th class="p-3">Cumulative Rent</th>
+                      <th class="p-3">Renter Investments</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-200">
+                    {simulationData.map((row, idx) => (
+                      <tr key={idx} class={idx % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                        <td class="p-3 font-semibold text-slate-900">{row.year}</td>
+                        <td class="p-3">${row.homeValue.toLocaleString()}</td>
+                        <td class="p-3 font-medium text-emerald-700">${row.buyEquity.toLocaleString()}</td>
+                        <td class="p-3 text-rose-700">${row.rentOutflow.toLocaleString()}</td>
+                        <td class="p-3">${row.renterPortfolio.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- Main Application ---
+    function App() {
+      const [activePage, setActivePage] = useState('home');
+
+      const projects = [
+        {
+          title: "Calgary West Commercial Plaza",
+          location: "Calgary, AB",
+          size: "68,000 sq ft",
+          category: "Retail & Office Center",
+          image: "https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&w=800&q=80",
+          description: "Multi-tenant modern commercial center with steel frame construction and integrated energy-efficient exterior facade."
+        },
+        {
+          title: "Edmonton Logistics & Service Facility",
+          location: "Edmonton, AB",
+          size: "85,000 sq ft",
+          category: "Light Industrial & Storage",
+          image: "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=800&q=80",
+          description: "Custom commercial distribution hub featuring high-bay clearance, reinforced concrete pads, and state-of-the-art dock doors."
+        },
+        {
+          title: "Red Deer Business Park Hub",
+          location: "Red Deer, AB",
+          size: "42,000 sq ft",
+          category: "Commercial Suites",
+          image: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80",
+          description: "Mid-scale commercial park build complete with turnkey professional offices, flex spaces, and expansive parking."
+        },
+        {
+          title: "Lethbridge Medical Professional Center",
+          location: "Lethbridge, AB",
+          size: "35,000 sq ft",
+          category: "Healthcare & Office",
+          image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
+          description: "Purpose-built healthcare commercial space featuring cleanroom standards, elevator shafts, and custom client suites."
+        },
+        {
+          title: "Airdrie Commercial Retail Complex",
+          location: "Airdrie, AB",
+          size: "54,000 sq ft",
+          category: "Retail Center",
+          image: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=800&q=80",
+          description: "High-visibility retail strip construction engineered for long-term endurance in Western Canada's winter climate."
+        },
+        {
+          title: "Sherwood Park Enterprise Hub",
+          location: "Sherwood Park, AB",
+          size: "72,000 sq ft",
+          category: "Mixed Commercial",
+          image: "https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?auto=format&fit=crop&w=800&q=80",
+          description: "Sustainable enterprise park focusing on low-emission HVAC design and modern exterior paneling."
+        }
+      ];
+
+      return (
+        <div class="min-h-screen flex flex-col">
+          {/* Navigation */}
+          <nav class="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-20">
+              <div class="flex items-center space-x-3 cursor-pointer" onClick={() => setActivePage('home')}>
+                <div class="bg-amber-500 text-slate-900 p-2.5 rounded-lg font-black text-xl tracking-tighter">MC</div>
+                <div>
+                  <span class="text-xl font-extrabold tracking-tight block leading-none">MILLER</span>
+                  <span class="text-xs text-amber-500 font-semibold tracking-widest uppercase">CONSTRUCTIONS</span>
+                </div>
+              </div>
+
+              <div class="hidden md:flex space-x-8 font-medium text-sm">
+                {['home', 'projects', 'simulator', 'about', 'contact'].map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setActivePage(page)}
+                    class={`capitalize transition-colors ${activePage === page ? 'text-amber-500 font-bold border-b-2 border-amber-500 pb-1' : 'text-slate-300 hover:text-white'}`}
+                  >
+                    {page === 'simulator' ? 'Rent vs Buy' : page}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </nav>
+
+          {/* Page Content */}
+          <main class="flex-grow">
+            {activePage === 'home' && (
+              <div>
+                {/* Hero */}
+                <div class="relative bg-slate-900 text-white py-28 px-4 sm:px-6 lg:px-8 bg-cover bg-center" style={{backgroundImage: "linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), url('https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&w=1600&q=80')"}}>
+                  <div class="max-w-5xl mx-auto text-center space-y-6">
+                    <span class="inline-block bg-amber-500/20 text-amber-400 font-semibold text-sm px-4 py-1.5 rounded-full border border-amber-500/30">
+                      Alberta Commercial Construction Specialists
+                    </span>
+                    <h1 class="text-4xl sm:text-6xl font-black tracking-tight text-white leading-tight">
+                      Building Mid-Sized Commercial Excellence Across Alberta
+                    </h1>
+                    <p class="text-lg sm:text-xl text-slate-300 max-w-3xl mx-auto font-normal">
+                      Specializing exclusively in high-value commercial construction projects up to 100,000 square feet. Delivering quality, integrity, and safety across Calgary, Edmonton, and beyond.
+                    </p>
+                    <div class="pt-4 flex justify-center gap-4">
+                      <button onClick={() => setActivePage('projects')} class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-8 py-3.5 rounded-lg shadow-lg transition">
+                        Explore Alberta Projects
+                      </button>
+                      <button onClick={() => setActivePage('simulator')} class="bg-slate-800 hover:bg-slate-700 text-white font-semibold px-8 py-3.5 rounded-lg border border-slate-700 transition">
+                        Rent vs Buy Calculator
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Overview Cards */}
+                <div class="max-w-7xl mx-auto py-20 px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+                    <div class="w-12 h-12 bg-amber-100 text-amber-700 rounded-lg flex items-center justify-center font-bold text-xl mb-4">01</div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-2">Projects Under 100k Sq Ft</h3>
+                    <p class="text-slate-600 text-sm">Focused expertise on mid-sized commercial developments, plazas, medical centers, and light industrial facilities.</p>
+                  </div>
+                  <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+                    <div class="w-12 h-12 bg-amber-100 text-amber-700 rounded-lg flex items-center justify-center font-bold text-xl mb-4">02</div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-2">Alberta Local Focus</h3>
+                    <p class="text-slate-600 text-sm">Deep understanding of Western Canadian climate engineering, provincial zoning regulations, and local labor networks.</p>
+                  </div>
+                  <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+                    <div class="w-12 h-12 bg-amber-100 text-amber-700 rounded-lg flex items-center justify-center font-bold text-xl mb-4">03</div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-2">Financial Tools</h3>
+                    <p class="text-slate-600 text-sm">Providing property investors and commercial buyers with comprehensive 10-year Rent vs Buy equity modeling tools.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activePage === 'projects' && (
+              <div class="max-w-7xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-14">
+                  <h1 class="text-4xl font-extrabold text-slate-900">Commercial Work History in Alberta</h1>
+                  <p class="text-slate-600 mt-3 max-w-2xl mx-auto">Explore our portfolio of completed mid-scale commercial developments (strictly up to 100,000 sq ft) delivered across Calgary, Edmonton, Red Deer, and Lethbridge.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {projects.map((proj, idx) => (
+                    <div key={idx} class="bg-white rounded-xl shadow-md overflow-hidden border border-slate-200 hover:shadow-xl transition">
+                      <img src={proj.image} alt={proj.title} class="w-full h-52 object-cover" />
+                      <div class="p-6">
+                        <div class="flex justify-between items-center text-xs font-bold text-amber-600 uppercase tracking-wider mb-2">
+                          <span>{proj.location}</span>
+                          <span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md">{proj.size}</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-900 mb-2">{proj.title}</h3>
+                        <p class="text-slate-600 text-sm leading-relaxed">{proj.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activePage === 'simulator' && (
+              <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+                <RentVsBuySimulator />
+              </div>
+            )}
+
+            {activePage === 'about' && (
+              <div class="max-w-5xl mx-auto py-16 px-4 sm:px-6 lg:px-8 space-y-12">
+                <div class="text-center">
+                  <h1 class="text-4xl font-extrabold text-slate-900">About Miller Constructions</h1>
+                  <p class="text-slate-600 mt-3">Delivering sustainable, high-grade commercial projects across Alberta.</p>
+                </div>
+
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                  <h2 class="text-2xl font-bold text-slate-900">Our Goal</h2>
+                  <p class="text-slate-600 leading-relaxed">
+                    At Miller Constructions, our primary goal is to empower Alberta business owners and property investors with world-class commercial construction solutions. By focusing exclusively on mid-sized commercial developments up to 100,000 square feet, we maintain absolute quality control, transparent budgeting, and rigorous safety standards on every job site.
+                  </p>
+                </div>
+
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                  <h2 class="text-2xl font-bold text-slate-900">Leadership & Experienced Team</h2>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="flex items-center space-x-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                      <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80" alt="Head of Construction" class="w-16 h-16 rounded-full object-cover"/>
+                      <div>
+                        <h4 class="font-bold text-slate-900">Head of Construction Operations</h4>
+                        <p class="text-xs text-slate-500">20+ Years in Alberta Commercial Real Estate</p>
+                      </div>
+                    </div>
+                    <div class="flex items-center space-x-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                      <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80" alt="Lead Project Manager" class="w-16 h-16 rounded-full object-cover"/>
+                      <div>
+                        <h4 class="font-bold text-slate-900">Lead Project Manager</h4>
+                        <p class="text-xs text-slate-500">PMP Certified / Commercial Building Lead</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activePage === 'contact' && (
+              <div class="max-w-4xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
+                <div class="bg-white p-8 sm:p-12 rounded-2xl shadow-lg border border-slate-200 text-center space-y-6">
+                  <h1 class="text-3xl font-extrabold text-slate-900">Get in Touch with Head Office</h1>
+                  <p class="text-slate-600">Have an upcoming commercial project in Alberta under 100,000 sq ft? Contact our team today.</p>
+                  
+                  <div class="pt-4 flex justify-center">
+                    <a href="mailto:info@miller-constructions.com" class="inline-flex items-center space-x-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-8 py-4 rounded-xl shadow-md transition text-lg">
+                      <span>✉</span>
+                      <span>info@miller-constructions.com</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* Footer */}
+          <footer class="bg-slate-900 text-slate-400 py-10 border-t border-slate-800 text-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+              <p>© {new Date().getFullYear()} Miller Constructions. All rights reserved. Alberta, Canada.</p>
+              <div class="flex space-x-6">
+                <a href="mailto:info@miller-constructions.com" class="hover:text-amber-500">Head Office: info@miller-constructions.com</a>
+              </div>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
